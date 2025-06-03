@@ -62,6 +62,14 @@
             color: rgba(255, 255, 255, 0.8);
             font-size: 14px;
         }
+        
+        .polling-status {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 12px;
+            margin-top: 8px;
+            transition: opacity 0.3s ease-in-out;
+            min-height: 1em; /* Reserve space to prevent layout shift */
+        }
 
         .messages-container {
             flex: 1;
@@ -167,6 +175,7 @@
         <div class="chat-header">
             <h1 class="chat-title">💝 WebSim Loves You</h1>
             <p class="chat-subtitle" id="chatSubtitle">See WebSim AI respond to messages in real-time!</p>
+            <p class="polling-status" id="pollingStatus">Initializing comment sync...</p>
         </div>
         
         <div class="online-users" id="onlineUsers">
@@ -184,7 +193,6 @@
             WebSim AI is thinking... 🤔
         </div>
         
-        <!-- Input container removed -->
     </div>
 
     <script>
@@ -198,40 +206,175 @@
         const onlineUsers = document.getElementById('onlineUsers');
         const chatSubtitle = document.getElementById('chatSubtitle');
         const initialMessageContent = document.getElementById('initialMessage');
+        const pollingStatusElement = document.getElementById('pollingStatus');
+
+        // Polling configuration
+        let currentProjectDetails = null;
+        const processedCommentIds = new Set();
+        const POLLING_INTERVAL = 7000; // 7 seconds
+        let pollingIntervalId = null;
+
+        // Helper to extract text from DocumentNode (simplified)
+        function extractTextFromDocumentNode(docNode) {
+            if (!docNode || !docNode.children || docNode.children.length === 0) {
+                return "";
+            }
+            let text = "";
+            for (const block of docNode.children) {
+                if (block.type === "paragraph" && block.children) {
+                    for (const inline of block.children) {
+                        if (inline.type === "text") {
+                            text += inline.text + " ";
+                        } else if (inline.type === "link" && inline.children) { // Basic link text extraction
+                             for (const linkChild of inline.children) {
+                                if (linkChild.type === "text") {
+                                    text += linkChild.text + " ";
+                                }
+                            }
+                        }
+                        // Can be extended for other inline types like user mentions, etc.
+                    }
+                }
+                 // Can be extended for other block types like lists, etc.
+            }
+            return text.trim();
+        }
+
+        // Poll for new comments from project metadata
+        async function pollForComments() {
+            if (!currentProjectDetails || !currentProjectDetails.id) {
+                pollingStatusElement.textContent = "Project info unavailable. Cannot sync comments.";
+                console.warn("Project ID not available for polling.");
+                return;
+            }
+
+            pollingStatusElement.textContent = "Checking for new comments... 💬";
+            pollingStatusElement.style.opacity = '1';
+
+            try {
+                const response = await fetch(`/api/v1/projects/${currentProjectDetails.id}/comments?sort_by=created_at&sort_order=desc&first=20`); // Fetch more to catch up if needed
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch comments: ${response.statusText} (status: ${response.status})`);
+                }
+                const data = await response.json();
+                
+                const newCommentsFound = [];
+
+                if (data.comments && data.comments.data) {
+                    // API returns newest first, so process in reverse to add to chat in chronological order
+                    for (let i = data.comments.data.length - 1; i >= 0; i--) {
+                        const commentItem = data.comments.data[i];
+                        const comment = commentItem.comment;
+                        // Check if comment is truly new and not already in roomState or processed by this client
+                        if (!processedCommentIds.has(comment.id) && (!room.roomState.messages || !room.roomState.messages[comment.id])) {
+                             newCommentsFound.push(comment);
+                        } else if (!processedCommentIds.has(comment.id) && room.roomState.messages && room.roomState.messages[comment.id] && room.roomState.messages[comment.id].needsResponse !== false) {
+                            // Comment exists in room state but might not have been fully processed by this client from poll (e.g. needsResponse is still true/undefined)
+                            // Or if it's in room state, but this client hasn't added to its processedCommentIds from polling yet.
+                            // This path is less likely if the first condition is robust.
+                            // For safety, add to newCommentsFound to ensure it's considered.
+                            newCommentsFound.push(comment);
+                        } else if (!processedCommentIds.has(comment.id)){
+                            // It's in roomState and possibly handled, but this client's poll didn't know. Mark as processed.
+                            processedCommentIds.add(comment.id);
+                        }
+                    }
+                }
+                
+                if (newCommentsFound.length > 0) {
+                    addSystemMessage(`${newCommentsFound.length} new comment(s) found from metadata! Processing...`);
+                }
+
+                for (const comment of newCommentsFound) {
+                    const messageId = comment.id;
+
+                    // Double check against current room state before updating
+                    const existingMessageInRoomState = room.roomState.messages && room.roomState.messages[messageId];
+                    if (existingMessageInRoomState && typeof existingMessageInRoomState.needsResponse === 'boolean' && !existingMessageInRoomState.needsResponse) {
+                        processedCommentIds.add(messageId); // Ensure it's marked processed locally
+                        continue; 
+                    }
+                    
+                    processedCommentIds.add(messageId); // Add to processed set
+
+                    const authorUsername = (comment.author && comment.author.username) ? comment.author.username : 'Unknown User';
+                    const authorAvatar = (comment.author && comment.author.username) ? `https://images.websim.com/avatar/${comment.author.username}` : '';
+                    let content = comment.raw_content || extractTextFromDocumentNode(comment.content);
+                    if (!content || content.trim() === "") {
+                        content = "[empty comment]";
+                    }
+
+                    room.updateRoomState({
+                        messages: {
+                            [messageId]: {
+                                type: 'user',
+                                content: content,
+                                author: authorUsername,
+                                authorAvatar: authorAvatar, 
+                                timestamp: new Date(comment.created_at).getTime(),
+                                needsResponse: true, 
+                                id: messageId 
+                            }
+                        }
+                    });
+                }
+                const now = new Date();
+                pollingStatusElement.textContent = `Comments synced. Last check: ${now.toLocaleTimeString()}`;
+
+            } catch (error) {
+                console.error("Error polling for comments:", error);
+                pollingStatusElement.textContent = "Error syncing comments. Will retry.";
+            } finally {
+                 setTimeout(() => { 
+                     if (pollingStatusElement.textContent.startsWith("Comments synced") || pollingStatusElement.textContent.startsWith("Error syncing")) {
+                        pollingStatusElement.style.opacity = '0.7'; 
+                     }
+                }, 3000);
+            }
+        }
 
         // Initialize the chat room
         async function initializeChat() {
-            await room.initialize();
+            try {
+                await room.initialize();
+            } catch (e) {
+                console.error("Failed to initialize WebsimSocket room:", e);
+                pollingStatusElement.textContent = "Chat connection error.";
+                addSystemMessage("Could not connect to the chat service. Real-time features will be limited.");
+                // Optionally, you might want to stop further initialization or polling here
+                // For now, we'll let it try to fetch project info, though polling might fail or be less useful.
+            }
             
-            // Get current user info
             currentUser = room.peers[room.clientId];
             updateOnlineUsers();
 
-            // Subscribe to presence changes (users joining/leaving)
             room.subscribePresence((presence) => {
                 updateOnlineUsers();
             });
 
-            // Subscribe to room state changes (new messages)
             room.subscribeRoomState((roomState) => {
                 if (roomState.messages) {
                     updateMessages(roomState.messages);
                 }
             });
 
-            // Listen for AI responses and other events
             room.onmessage = (event) => {
                 const data = event.data;
                 switch (data.type) {
                     case "ai_response":
                         addAIMessage(data.content, data.messageId);
                         hideTyping();
+                        // If this AI response corresponds to a message from polling, ensure it's marked.
+                        // The current logic marks needsResponse: false in processMessageWithAI.
+                        if (data.messageId && processedCommentIds.has(data.messageId)) {
+                           // Optionally update polling status or local state if needed.
+                        }
                         break;
-                    case "user_typing": // This client won't send these, but can still display if others do
+                    case "user_typing": 
                         if (data.clientId !== room.clientId && data.isTyping) {
                             showTyping(data.username);
                         } else if (data.clientId !== room.clientId && !data.isTyping) {
-                            hideTyping(); // Hide if other user stopped typing
+                            hideTyping();
                         }
                         break;
                     case "connected":
@@ -243,17 +386,45 @@
                 }
             };
             
-            // Update initial texts if needed based on a more dynamic setup in future
-            // chatSubtitle.textContent = "See WebSim AI respond to messages in real-time!";
-            // initialMessageContent.textContent = "Hello! I'm WebSim AI. Messages will appear here as they come in, and I'll respond in real-time! ✨";
+            // Fetch current project details for polling
+            try {
+                const project = await window.websim.getCurrentProject();
+                currentProjectDetails = project;
+                if (!currentProjectDetails || !currentProjectDetails.id) {
+                    console.error("Could not get current project information. Comment polling will not work.");
+                    pollingStatusElement.textContent = "Error: Project info missing.";
+                } else {
+                    pollingStatusElement.textContent = `Syncing comments for "${currentProjectDetails.title || 'this project'}"...`;
+                    // Initial load of existing messages in roomState to populate processedCommentIds
+                    // This helps avoid reprocessing if messages were loaded into roomState before polling starts
+                    if (room.roomState && room.roomState.messages) {
+                        Object.keys(room.roomState.messages).forEach(msgId => {
+                             // Also add to processedCommentIds if it's a user message that didn't need response
+                            // (implying it was already handled or is an AI message).
+                            // We are primarily interested in user messages for polling.
+                            const message = room.roomState.messages[msgId];
+                            if (message.type === 'user' || message.id) { // message.id for any comment from API
+                                processedCommentIds.add(msgId);
+                            }
+                        });
+                    }
+                    await pollForComments(); // Initial poll
+                    if (pollingIntervalId) clearInterval(pollingIntervalId); // Clear previous interval if any
+                    pollingIntervalId = setInterval(pollForComments, POLLING_INTERVAL);
+                }
+            } catch (err) {
+                 console.error("Failed to get current project info:", err);
+                 pollingStatusElement.textContent = "Error loading project data for comment sync.";
+            }
         }
 
         // Update online users display
         function updateOnlineUsers() {
+            if (!room.peers) return; // Guard against undefined peers
             const userCount = Object.keys(room.peers).length;
             const userAvatars = Object.values(room.peers)
-                .slice(0, 5) // Show max 5 avatars
-                .map(peer => `<img src="${peer.avatarUrl}" alt="${peer.username}" class="user-avatar">`)
+                .slice(0, 5) 
+                .map(peer => peer.avatarUrl ? `<img src="${peer.avatarUrl}" alt="${peer.username || 'User'}" class="user-avatar">` : '')
                 .join('');
             
             onlineUsers.innerHTML = `👥 ${userCount} online ${userAvatars}`;
@@ -265,12 +436,10 @@
                 const message = messages[messageId];
                 if (!document.querySelector(`[data-message-id="${messageId}"]`)) {
                     if (message.type === 'user') {
+                        // message.authorAvatar is now part of the message object in roomState from polling
                         addUserMessage(message.content, message.author, message.authorAvatar, messageId);
                         
-                        // Trigger AI response for new user messages
                         if (message.needsResponse) {
-                            // Ensure this client hasn't already started processing this messageId
-                            // This is a simple check; a more robust lock would involve roomState
                             if (!window[`processing_${messageId}`]) {
                                 window[`processing_${messageId}`] = true;
                                 processMessageWithAI(message.content, messageId).finally(() => {
@@ -279,17 +448,11 @@
                             }
                         }
                     }
+                    // Note: AI messages are added by addAIMessage directly, not through this block
                 } else {
-                    // If message exists, check if its 'needsResponse' status changed in roomState
-                    // and if AI processing might need to be re-evaluated or cancelled
-                    // For now, simply ensures AI isn't re-triggered if already processed.
                     const existingMessageData = messages[messageId];
                     if (existingMessageData && typeof existingMessageData.needsResponse === 'boolean' && !existingMessageData.needsResponse) {
-                         // If a message is marked as not needing response, cancel any ongoing processing for it.
-                         // This is a simplified approach. True cancellation of async LLM calls isn't trivial.
                          if (window[`processing_${messageId}`]) {
-                             // console.log(`AI response for ${messageId} no longer needed or handled by another client.`);
-                             // Deleting the flag might prevent this client from sending its own response if another client was faster.
                              delete window[`processing_${messageId}`];
                          }
                     }
@@ -299,18 +462,16 @@
 
         // Process message with AI
         async function processMessageWithAI(userMessage, messageId) {
-            // Only proceed if this client is still "assigned" to process this.
             if (!window[`processing_${messageId}`]) return;
 
             showTyping("WebSim AI");
 
             try {
-                // Generate AI response using websim's LLM
                 const response = await websim.chat.completions.create({
                     messages: [
                         {
                             role: "system",
-                            content: `You are WebSim AI, a friendly, enthusiastic, and slightly playful AI assistant. You love talking to users and are excited to chat! Keep responses conversational, warm, and engaging. Use emojis occasionally but not excessively. You're part of a real-time chat experience where users can talk to you instantly.`
+                            content: `You are WebSim AI, a friendly, enthusiastic, and slightly playful AI assistant. You love talking to users and are excited to chat! Keep responses conversational, warm, and engaging. Use emojis occasionally but not excessively. You're part of a real-time chat experience where users can talk to you instantly. If you see a comment that seems like a question, try to answer it. If it's a statement, react to it engagingly.`
                         },
                         {
                             role: "user",
@@ -319,30 +480,23 @@
                     ]
                 });
 
-                // Check again if processing is still valid before sending (another client might have responded)
-                // This relies on the `ai_response` event leading to `needsResponse: false` update quickly.
                 const currentMessageState = room.roomState.messages && room.roomState.messages[messageId];
-                if (currentMessageState && !currentMessageState.needsResponse) {
-                    // console.log(`AI response for ${messageId} already handled or outdated. Skipping send.`);
+                if (currentMessageState && !currentMessageState.needsResponse && currentMessageState.type !== 'ai_response_placeholder') { // check for placeholder if we add one
                     hideTyping();
                     delete window[`processing_${messageId}`];
                     return;
                 }
                 
-                // Broadcast AI response
                 room.send({
                     type: "ai_response",
                     content: response.content,
-                    messageId: messageId, // Correlate AI response to the user message ID
+                    messageId: messageId, 
                     timestamp: Date.now()
                 });
 
-                // Mark message as processed by updating roomState
-                // This should be the primary way other clients know not to process it.
                 room.updateRoomState({
                     messages: {
                         [messageId]: {
-                            // type, content, author, etc. are merged by updateRoomState
                             needsResponse: false 
                         }
                     }
@@ -350,7 +504,6 @@
 
             } catch (error) {
                 console.error('Error getting AI response:', error);
-                // Only send error if this client was supposed to respond and hasn't been superseded.
                 const currentMessageState = room.roomState.messages && room.roomState.messages[messageId];
                  if (currentMessageState && currentMessageState.needsResponse && window[`processing_${messageId}`]) {
                     room.send({
@@ -366,8 +519,6 @@
                     });
                 }
             } finally {
-                // Regardless of outcome, if this client initiated, it should hide typing for itself
-                // unless another typing event (e.g. user_typing from another user) is active
                  if (typingIndicator.textContent.startsWith("WebSim AI")) {
                     hideTyping();
                  }
@@ -380,8 +531,11 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message user';
             messageDiv.setAttribute('data-message-id', messageId);
+            // Avatar display in message is currently not styled, so sticking to username for now.
+            // If avatarUrl is provided and styling is added, it could be integrated here.
+            // const avatarImg = avatarUrl ? `<img src="${avatarUrl}" class="message-avatar">` : '';
             messageDiv.innerHTML = `
-                <div class="message-author">${author} 👤</div>
+                <div class="message-author">${author || 'User'} 👤</div>
                 <div class="message-content">${escapeHtml(content)}</div>
             `;
             messagesContainer.appendChild(messageDiv);
@@ -390,13 +544,12 @@
 
         // Add AI message to chat
         function addAIMessage(content, originalMessageId) {
-            // Ensure we don't add duplicate AI responses for the same original message
             if (document.querySelector(`[data-ai-for-message-id="${originalMessageId}"]`)) {
                 return;
             }
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message ai';
-            messageDiv.setAttribute('data-ai-for-message-id', originalMessageId); // Link AI message to original user message
+            messageDiv.setAttribute('data-ai-for-message-id', originalMessageId); 
             messageDiv.innerHTML = `
                 <div class="message-author">WebSim AI 🤖</div>
                 <div class="message-content">${escapeHtml(content)}</div>
@@ -408,8 +561,7 @@
         // Add system message
         function addSystemMessage(content) {
             const messageDiv = document.createElement('div');
-            // System messages don't need a data-message-id as they are not in roomState.messages
-            messageDiv.className = 'message system ai'; // Styled like AI for consistency
+            messageDiv.className = 'message system ai'; 
             messageDiv.innerHTML = `
                 <div class="message-content" style="font-style: italic; opacity: 0.8;">${escapeHtml(content)}</div>
             `;
@@ -444,12 +596,12 @@
                 .replace(/'/g, "&#039;");
         }
 
-        // Event listeners removed as there's no input field
+        initializeChat().catch(err => {
+            console.error("Initialization failed:", err);
+            pollingStatusElement.textContent = "Critical error during setup.";
+            addSystemMessage("A critical error occurred during page setup. Chat functionality might be broken.");
+        });
 
-        // Initialize the chat when page loads
-        initializeChat().catch(console.error);
-
-        // No need to focus input on load anymore
     </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
