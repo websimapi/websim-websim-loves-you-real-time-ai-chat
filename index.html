@@ -117,52 +117,6 @@
             line-height: 1.5;
         }
 
-        .input-container {
-            padding: 20px 30px;
-            background: rgba(255, 255, 255, 0.1);
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .message-input {
-            flex: 1;
-            padding: 15px 20px;
-            border: none;
-            border-radius: 25px;
-            background: rgba(255, 255, 255, 0.9);
-            color: #333;
-            font-size: 16px;
-            outline: none;
-            transition: all 0.3s ease;
-        }
-
-        .message-input:focus {
-            transform: scale(1.02);
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .send-button {
-            width: 50px;
-            height: 50px;
-            border: none;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
-            color: white;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s ease;
-            font-size: 20px;
-        }
-
-        .send-button:hover {
-            transform: scale(1.1);
-            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
-        }
-
         .typing-indicator {
             display: none;
             align-self: flex-start;
@@ -171,7 +125,7 @@
             border-radius: 18px;
             color: #666;
             font-style: italic;
-            animation: pulse 1.5s ease-in-out infinite;
+            animation: pulse 1.5s ease-in-out infinite; /* Re-using pulse animation for typing */
         }
 
         .online-users {
@@ -205,10 +159,6 @@
             .message {
                 max-width: 85%;
             }
-            
-            .input-container {
-                padding: 15px 20px;
-            }
         }
     </style>
 </head>
@@ -216,7 +166,7 @@
     <div class="chat-container">
         <div class="chat-header">
             <h1 class="chat-title">💝 WebSim Loves You</h1>
-            <p class="chat-subtitle">Talk to me and I'll respond in real-time!</p>
+            <p class="chat-subtitle" id="chatSubtitle">See WebSim AI respond to messages in real-time!</p>
         </div>
         
         <div class="online-users" id="onlineUsers">
@@ -226,7 +176,7 @@
         <div class="messages-container" id="messagesContainer">
             <div class="message ai">
                 <div class="message-author">WebSim AI 🤖</div>
-                <div class="message-content">Hello! I'm here and ready to chat with you in real-time. Send me a message and I'll respond instantly! ✨</div>
+                <div class="message-content" id="initialMessage">Hello! I'm WebSim AI. Messages will appear here as they come in, and I'll respond in real-time! ✨</div>
             </div>
         </div>
         
@@ -234,26 +184,20 @@
             WebSim AI is thinking... 🤔
         </div>
         
-        <div class="input-container">
-            <input type="text" class="message-input" id="messageInput" placeholder="Type your message here..." maxlength="500">
-            <button class="send-button" id="sendButton">
-                ➤
-            </button>
-        </div>
+        <!-- Input container removed -->
     </div>
 
     <script>
         // WebSocket room for real-time multiplayer chat
         const room = new WebsimSocket();
         let currentUser = null;
-        let messageCount = 0;
 
         // DOM elements
         const messagesContainer = document.getElementById('messagesContainer');
-        const messageInput = document.getElementById('messageInput');
-        const sendButton = document.getElementById('sendButton');
         const typingIndicator = document.getElementById('typingIndicator');
         const onlineUsers = document.getElementById('onlineUsers');
+        const chatSubtitle = document.getElementById('chatSubtitle');
+        const initialMessageContent = document.getElementById('initialMessage');
 
         // Initialize the chat room
         async function initializeChat() {
@@ -283,11 +227,11 @@
                         addAIMessage(data.content, data.messageId);
                         hideTyping();
                         break;
-                    case "user_typing":
+                    case "user_typing": // This client won't send these, but can still display if others do
                         if (data.clientId !== room.clientId && data.isTyping) {
                             showTyping(data.username);
-                        } else {
-                            hideTyping();
+                        } else if (data.clientId !== room.clientId && !data.isTyping) {
+                            hideTyping(); // Hide if other user stopped typing
                         }
                         break;
                     case "connected":
@@ -298,6 +242,10 @@
                         break;
                 }
             };
+            
+            // Update initial texts if needed based on a more dynamic setup in future
+            // chatSubtitle.textContent = "See WebSim AI respond to messages in real-time!";
+            // initialMessageContent.textContent = "Hello! I'm WebSim AI. Messages will appear here as they come in, and I'll respond in real-time! ✨";
         }
 
         // Update online users display
@@ -313,10 +261,6 @@
 
         // Update messages from room state
         function updateMessages(messages) {
-            // Only add new messages that aren't already displayed
-            const currentMessages = messagesContainer.querySelectorAll('.message:not(.system)');
-            const currentCount = currentMessages.length - 1; // Subtract welcome message
-            
             Object.keys(messages).forEach(messageId => {
                 const message = messages[messageId];
                 if (!document.querySelector(`[data-message-id="${messageId}"]`)) {
@@ -325,48 +269,39 @@
                         
                         // Trigger AI response for new user messages
                         if (message.needsResponse) {
-                            processMessageWithAI(message.content, messageId);
+                            // Ensure this client hasn't already started processing this messageId
+                            // This is a simple check; a more robust lock would involve roomState
+                            if (!window[`processing_${messageId}`]) {
+                                window[`processing_${messageId}`] = true;
+                                processMessageWithAI(message.content, messageId).finally(() => {
+                                    delete window[`processing_${messageId}`];
+                                });
+                            }
                         }
                     }
-                }
-            });
-        }
-
-        // Send a message
-        async function sendMessage() {
-            const content = messageInput.value.trim();
-            if (!content) return;
-
-            messageInput.value = '';
-            messageCount++;
-            const messageId = `msg_${room.clientId}_${messageCount}_${Date.now()}`;
-
-            // Add to room state
-            room.updateRoomState({
-                messages: {
-                    [messageId]: {
-                        id: messageId,
-                        type: 'user',
-                        content: content,
-                        author: currentUser.username,
-                        authorAvatar: currentUser.avatarUrl,
-                        timestamp: Date.now(),
-                        needsResponse: true
+                } else {
+                    // If message exists, check if its 'needsResponse' status changed in roomState
+                    // and if AI processing might need to be re-evaluated or cancelled
+                    // For now, simply ensures AI isn't re-triggered if already processed.
+                    const existingMessageData = messages[messageId];
+                    if (existingMessageData && typeof existingMessageData.needsResponse === 'boolean' && !existingMessageData.needsResponse) {
+                         // If a message is marked as not needing response, cancel any ongoing processing for it.
+                         // This is a simplified approach. True cancellation of async LLM calls isn't trivial.
+                         if (window[`processing_${messageId}`]) {
+                             // console.log(`AI response for ${messageId} no longer needed or handled by another client.`);
+                             // Deleting the flag might prevent this client from sending its own response if another client was faster.
+                             delete window[`processing_${messageId}`];
+                         }
                     }
                 }
-            });
-
-            // Broadcast typing stopped
-            room.send({
-                type: "user_typing",
-                clientId: room.clientId,
-                username: currentUser.username,
-                isTyping: false
             });
         }
 
         // Process message with AI
         async function processMessageWithAI(userMessage, messageId) {
+            // Only proceed if this client is still "assigned" to process this.
+            if (!window[`processing_${messageId}`]) return;
+
             showTyping("WebSim AI");
 
             try {
@@ -384,32 +319,59 @@
                     ]
                 });
 
+                // Check again if processing is still valid before sending (another client might have responded)
+                // This relies on the `ai_response` event leading to `needsResponse: false` update quickly.
+                const currentMessageState = room.roomState.messages && room.roomState.messages[messageId];
+                if (currentMessageState && !currentMessageState.needsResponse) {
+                    // console.log(`AI response for ${messageId} already handled or outdated. Skipping send.`);
+                    hideTyping();
+                    delete window[`processing_${messageId}`];
+                    return;
+                }
+                
                 // Broadcast AI response
                 room.send({
                     type: "ai_response",
                     content: response.content,
-                    messageId: messageId,
+                    messageId: messageId, // Correlate AI response to the user message ID
                     timestamp: Date.now()
                 });
 
-                // Mark message as processed
+                // Mark message as processed by updating roomState
+                // This should be the primary way other clients know not to process it.
                 room.updateRoomState({
                     messages: {
                         [messageId]: {
-                            needsResponse: false
+                            // type, content, author, etc. are merged by updateRoomState
+                            needsResponse: false 
                         }
                     }
                 });
 
             } catch (error) {
                 console.error('Error getting AI response:', error);
-                room.send({
-                    type: "ai_response",
-                    content: "Sorry, I'm having trouble responding right now. Please try again! 😅",
-                    messageId: messageId,
-                    timestamp: Date.now()
-                });
-                hideTyping();
+                // Only send error if this client was supposed to respond and hasn't been superseded.
+                const currentMessageState = room.roomState.messages && room.roomState.messages[messageId];
+                 if (currentMessageState && currentMessageState.needsResponse && window[`processing_${messageId}`]) {
+                    room.send({
+                        type: "ai_response",
+                        content: "Sorry, I'm having trouble responding right now. Please try again! 😅",
+                        messageId: messageId,
+                        timestamp: Date.now()
+                    });
+                     room.updateRoomState({
+                        messages: {
+                            [messageId]: { needsResponse: false }
+                        }
+                    });
+                }
+            } finally {
+                // Regardless of outcome, if this client initiated, it should hide typing for itself
+                // unless another typing event (e.g. user_typing from another user) is active
+                 if (typingIndicator.textContent.startsWith("WebSim AI")) {
+                    hideTyping();
+                 }
+                delete window[`processing_${messageId}`];
             }
         }
 
@@ -427,10 +389,14 @@
         }
 
         // Add AI message to chat
-        function addAIMessage(content, messageId) {
+        function addAIMessage(content, originalMessageId) {
+            // Ensure we don't add duplicate AI responses for the same original message
+            if (document.querySelector(`[data-ai-for-message-id="${originalMessageId}"]`)) {
+                return;
+            }
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message ai';
-            messageDiv.setAttribute('data-message-id', `ai_${messageId}`);
+            messageDiv.setAttribute('data-ai-for-message-id', originalMessageId); // Link AI message to original user message
             messageDiv.innerHTML = `
                 <div class="message-author">WebSim AI 🤖</div>
                 <div class="message-content">${escapeHtml(content)}</div>
@@ -442,7 +408,8 @@
         // Add system message
         function addSystemMessage(content) {
             const messageDiv = document.createElement('div');
-            messageDiv.className = 'message system ai';
+            // System messages don't need a data-message-id as they are not in roomState.messages
+            messageDiv.className = 'message system ai'; // Styled like AI for consistency
             messageDiv.innerHTML = `
                 <div class="message-content" style="font-style: italic; opacity: 0.8;">${escapeHtml(content)}</div>
             `;
@@ -452,7 +419,7 @@
 
         // Show typing indicator
         function showTyping(username) {
-            typingIndicator.textContent = `${username} is thinking... 🤔`;
+            typingIndicator.textContent = `${username || 'Someone'} is thinking... 🤔`;
             typingIndicator.style.display = 'block';
             scrollToBottom();
         }
@@ -477,47 +444,13 @@
                 .replace(/'/g, "&#039;");
         }
 
-        // Event listeners
-        sendButton.addEventListener('click', sendMessage);
-        
-        messageInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                sendMessage();
-            }
-        });
-
-        // Typing indicator for other users
-        let typingTimeout;
-        messageInput.addEventListener('input', () => {
-            if (currentUser) {
-                room.send({
-                    type: "user_typing",
-                    clientId: room.clientId,
-                    username: currentUser.username,
-                    isTyping: true
-                });
-
-                clearTimeout(typingTimeout);
-                typingTimeout = setTimeout(() => {
-                    room.send({
-                        type: "user_typing",
-                        clientId: room.clientId,
-                        username: currentUser.username,
-                        isTyping: false
-                    });
-                }, 2000);
-            }
-        });
+        // Event listeners removed as there's no input field
 
         // Initialize the chat when page loads
         initializeChat().catch(console.error);
 
-        // Focus input on load
-        window.addEventListener('load', () => {
-            messageInput.focus();
-        });
+        // No need to focus input on load anymore
     </script>
 <script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
 </body>
 </html>
-
