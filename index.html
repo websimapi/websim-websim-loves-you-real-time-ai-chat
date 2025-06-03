@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSim Loves You - Real-time AI Chat</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        .chat-container {
+            width: 90vw;
+            max-width: 800px;
+            height: 85vh;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-header {
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+
+        .chat-title {
+            color: white;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 5px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: pulse 2s ease-in-out infinite alternate;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.8; }
+            100% { opacity: 1; }
+        }
+
+        .chat-subtitle {
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 14px;
+        }
+
+        .messages-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 15px 20px;
+            border-radius: 18px;
+            word-wrap: break-word;
+            animation: slideIn 0.3s ease-out;
+            position: relative;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .message.ai {
+            align-self: flex-start;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+
+        .message-author {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+
+        .message-content {
+            line-height: 1.5;
+        }
+
+        .input-container {
+            padding: 20px 30px;
+            background: rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .message-input {
+            flex: 1;
+            padding: 15px 20px;
+            border: none;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 16px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .message-input:focus {
+            transform: scale(1.02);
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+        }
+
+        .send-button {
+            width: 50px;
+            height: 50px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #ff6b6b, #4ecdc4);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            font-size: 20px;
+        }
+
+        .send-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 20px rgba(255, 107, 107, 0.4);
+        }
+
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 18px;
+            color: #666;
+            font-style: italic;
+            animation: pulse 1.5s ease-in-out infinite;
+        }
+
+        .online-users {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 10px 15px;
+            border-radius: 20px;
+            color: white;
+            font-size: 12px;
+            backdrop-filter: blur(10px);
+        }
+
+        .user-avatar {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-left: 5px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+        }
+
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 95vw;
+                height: 90vh;
+                border-radius: 15px;
+            }
+            
+            .message {
+                max-width: 85%;
+            }
+            
+            .input-container {
+                padding: 15px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <h1 class="chat-title">💝 WebSim Loves You</h1>
+            <p class="chat-subtitle">Talk to me and I'll respond in real-time!</p>
+        </div>
+        
+        <div class="online-users" id="onlineUsers">
+            <span>👥 Loading...</span>
+        </div>
+        
+        <div class="messages-container" id="messagesContainer">
+            <div class="message ai">
+                <div class="message-author">WebSim AI 🤖</div>
+                <div class="message-content">Hello! I'm here and ready to chat with you in real-time. Send me a message and I'll respond instantly! ✨</div>
+            </div>
+        </div>
+        
+        <div class="typing-indicator" id="typingIndicator">
+            WebSim AI is thinking... 🤔
+        </div>
+        
+        <div class="input-container">
+            <input type="text" class="message-input" id="messageInput" placeholder="Type your message here..." maxlength="500">
+            <button class="send-button" id="sendButton">
+                ➤
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // WebSocket room for real-time multiplayer chat
+        const room = new WebsimSocket();
+        let currentUser = null;
+        let messageCount = 0;
+
+        // DOM elements
+        const messagesContainer = document.getElementById('messagesContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const onlineUsers = document.getElementById('onlineUsers');
+
+        // Initialize the chat room
+        async function initializeChat() {
+            await room.initialize();
+            
+            // Get current user info
+            currentUser = room.peers[room.clientId];
+            updateOnlineUsers();
+
+            // Subscribe to presence changes (users joining/leaving)
+            room.subscribePresence((presence) => {
+                updateOnlineUsers();
+            });
+
+            // Subscribe to room state changes (new messages)
+            room.subscribeRoomState((roomState) => {
+                if (roomState.messages) {
+                    updateMessages(roomState.messages);
+                }
+            });
+
+            // Listen for AI responses and other events
+            room.onmessage = (event) => {
+                const data = event.data;
+                switch (data.type) {
+                    case "ai_response":
+                        addAIMessage(data.content, data.messageId);
+                        hideTyping();
+                        break;
+                    case "user_typing":
+                        if (data.clientId !== room.clientId && data.isTyping) {
+                            showTyping(data.username);
+                        } else {
+                            hideTyping();
+                        }
+                        break;
+                    case "connected":
+                        addSystemMessage(`${data.username} joined the chat! 👋`);
+                        break;
+                    case "disconnected":
+                        addSystemMessage(`${data.username} left the chat 👋`);
+                        break;
+                }
+            };
+        }
+
+        // Update online users display
+        function updateOnlineUsers() {
+            const userCount = Object.keys(room.peers).length;
+            const userAvatars = Object.values(room.peers)
+                .slice(0, 5) // Show max 5 avatars
+                .map(peer => `<img src="${peer.avatarUrl}" alt="${peer.username}" class="user-avatar">`)
+                .join('');
+            
+            onlineUsers.innerHTML = `👥 ${userCount} online ${userAvatars}`;
+        }
+
+        // Update messages from room state
+        function updateMessages(messages) {
+            // Only add new messages that aren't already displayed
+            const currentMessages = messagesContainer.querySelectorAll('.message:not(.system)');
+            const currentCount = currentMessages.length - 1; // Subtract welcome message
+            
+            Object.keys(messages).forEach(messageId => {
+                const message = messages[messageId];
+                if (!document.querySelector(`[data-message-id="${messageId}"]`)) {
+                    if (message.type === 'user') {
+                        addUserMessage(message.content, message.author, message.authorAvatar, messageId);
+                        
+                        // Trigger AI response for new user messages
+                        if (message.needsResponse) {
+                            processMessageWithAI(message.content, messageId);
+                        }
+                    }
+                }
+            });
+        }
+
+        // Send a message
+        async function sendMessage() {
+            const content = messageInput.value.trim();
+            if (!content) return;
+
+            messageInput.value = '';
+            messageCount++;
+            const messageId = `msg_${room.clientId}_${messageCount}_${Date.now()}`;
+
+            // Add to room state
+            room.updateRoomState({
+                messages: {
+                    [messageId]: {
+                        id: messageId,
+                        type: 'user',
+                        content: content,
+                        author: currentUser.username,
+                        authorAvatar: currentUser.avatarUrl,
+                        timestamp: Date.now(),
+                        needsResponse: true
+                    }
+                }
+            });
+
+            // Broadcast typing stopped
+            room.send({
+                type: "user_typing",
+                clientId: room.clientId,
+                username: currentUser.username,
+                isTyping: false
+            });
+        }
+
+        // Process message with AI
+        async function processMessageWithAI(userMessage, messageId) {
+            showTyping("WebSim AI");
+
+            try {
+                // Generate AI response using websim's LLM
+                const response = await websim.chat.completions.create({
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are WebSim AI, a friendly, enthusiastic, and slightly playful AI assistant. You love talking to users and are excited to chat! Keep responses conversational, warm, and engaging. Use emojis occasionally but not excessively. You're part of a real-time chat experience where users can talk to you instantly.`
+                        },
+                        {
+                            role: "user",
+                            content: userMessage
+                        }
+                    ]
+                });
+
+                // Broadcast AI response
+                room.send({
+                    type: "ai_response",
+                    content: response.content,
+                    messageId: messageId,
+                    timestamp: Date.now()
+                });
+
+                // Mark message as processed
+                room.updateRoomState({
+                    messages: {
+                        [messageId]: {
+                            needsResponse: false
+                        }
+                    }
+                });
+
+            } catch (error) {
+                console.error('Error getting AI response:', error);
+                room.send({
+                    type: "ai_response",
+                    content: "Sorry, I'm having trouble responding right now. Please try again! 😅",
+                    messageId: messageId,
+                    timestamp: Date.now()
+                });
+                hideTyping();
+            }
+        }
+
+        // Add user message to chat
+        function addUserMessage(content, author, avatarUrl, messageId) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message user';
+            messageDiv.setAttribute('data-message-id', messageId);
+            messageDiv.innerHTML = `
+                <div class="message-author">${author} 👤</div>
+                <div class="message-content">${escapeHtml(content)}</div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Add AI message to chat
+        function addAIMessage(content, messageId) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message ai';
+            messageDiv.setAttribute('data-message-id', `ai_${messageId}`);
+            messageDiv.innerHTML = `
+                <div class="message-author">WebSim AI 🤖</div>
+                <div class="message-content">${escapeHtml(content)}</div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Add system message
+        function addSystemMessage(content) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message system ai';
+            messageDiv.innerHTML = `
+                <div class="message-content" style="font-style: italic; opacity: 0.8;">${escapeHtml(content)}</div>
+            `;
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+
+        // Show typing indicator
+        function showTyping(username) {
+            typingIndicator.textContent = `${username} is thinking... 🤔`;
+            typingIndicator.style.display = 'block';
+            scrollToBottom();
+        }
+
+        // Hide typing indicator
+        function hideTyping() {
+            typingIndicator.style.display = 'none';
+        }
+
+        // Scroll to bottom of messages
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Typing indicator for other users
+        let typingTimeout;
+        messageInput.addEventListener('input', () => {
+            if (currentUser) {
+                room.send({
+                    type: "user_typing",
+                    clientId: room.clientId,
+                    username: currentUser.username,
+                    isTyping: true
+                });
+
+                clearTimeout(typingTimeout);
+                typingTimeout = setTimeout(() => {
+                    room.send({
+                        type: "user_typing",
+                        clientId: room.clientId,
+                        username: currentUser.username,
+                        isTyping: false
+                    });
+                }, 2000);
+            }
+        });
+
+        // Initialize the chat when page loads
+        initializeChat().catch(console.error);
+
+        // Focus input on load
+        window.addEventListener('load', () => {
+            messageInput.focus();
+        });
+    </script>
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v8c78df7c7c0f484497ecbca7046644da1771523124516" integrity="sha512-8DS7rgIrAmghBFwoOTujcf6D9rXvH8xm8JQ1Ja01h9QX8EzXldiszufYa4IFfKdLUKTTrnSFXLDkUEOTrZQ8Qg==" data-cf-beacon='{"version":"2024.11.0","token":"4c6229722a6346bc8eb5cb0e5eae5d41","server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>
+
