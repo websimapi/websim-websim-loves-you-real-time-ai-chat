@@ -797,11 +797,9 @@ I'm now ready to help you create engaging, functional, and interactive web exper
                     messages: [
                         {
                             role: "system",
-                            content: `You are WebSim AI, a friendly, enthusiastic, and slightly playful AI assistant. You love talking to users and are excited to chat! Keep responses conversational, warm, and engaging. Use emojis occasionally but not excessively. You're part of a real-time chat experience where users can talk to you instantly. If you see a comment that seems like a question, try to answer it. If it's a statement, react to it engagingly.
-                            
-                            ${AI_CONTEXT_DOCUMENTATION}
-                            
-                            You have access to all the capabilities described above. Feel free to suggest using them when appropriate (like generating images, uploading files, creating interactive experiences, etc.).`
+                            content: "You are WebSim AI, a friendly, enthusiastic, and slightly playful AI assistant. You love talking to users and are excited to chat! Keep responses conversational, warm, and engaging. Use emojis occasionally but not excessively. You're part of a real-time chat experience where users can talk to you instantly. If you see a comment that seems like a question, try to answer it. If it's a statement, react to it engagingly.\n\n" + 
+                            AI_CONTEXT_DOCUMENTATION + 
+                            "\n\nYou have access to all the capabilities described above. Feel free to suggest using them when appropriate (like generating images, uploading files, creating interactive experiences, etc.)."
                         },
                         {
                             role: "user",
