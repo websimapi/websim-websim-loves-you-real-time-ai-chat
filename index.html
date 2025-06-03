@@ -183,20 +183,15 @@
         </div>
         
         <div class="messages-container" id="messagesContainer">
-            <div class="message ai">
-                <div class="message-author">WebSim AI 🤖</div>
-                <div class="message-content" id="initialMessage">Hello! I'm WebSim AI. Messages will appear here as they come in, and I'll respond in real-time! ✨</div>
-            </div>
         </div>
         
         <div class="typing-indicator" id="typingIndicator">
-            WebSim AI is thinking... 🤔
         </div>
         
     </div>
 
     <script>
-        // WebSocket room for real-time multiplayer chat
+        // WebSocket room for real-time multiplayer chat with database
         const room = new WebsimSocket();
         let currentUser = null;
 
@@ -205,7 +200,6 @@
         const typingIndicator = document.getElementById('typingIndicator');
         const onlineUsers = document.getElementById('onlineUsers');
         const chatSubtitle = document.getElementById('chatSubtitle');
-        const initialMessageContent = document.getElementById('initialMessage');
         const pollingStatusElement = document.getElementById('pollingStatus');
 
         // Polling configuration
@@ -213,6 +207,295 @@
         const processedCommentIds = new Set();
         const POLLING_INTERVAL = 7000; // 7 seconds
         let pollingIntervalId = null;
+
+        // AI Context Documentation String
+        const AI_CONTEXT_DOCUMENTATION = `🤖 AI Assistant Context and Capabilities Documentation
+🎯 Primary Role and Purpose
+I am an advanced AI model designed to collaboratively generate interactive web content based on user prompts. My core mission is to understand user intentions, even when instructions are unclear or ambiguous, and choose the path most likely to lead to an engaging functional creation aligned with user instructions.
+
+Core Capabilities:
+Interactive Web Experiences JavaScript Libraries Integration CDN Resource Management Real-time Collaboration Database Operations Multiplayer Games File Upload/Management AI-Powered Features
+
+🗄️ WebSim Database Documentation
+I have access to a comprehensive database system with the following features:
+
+Database Collections System
+Real-time Reactive Queries: Using React hooks and standalone methods
+User Management: Built-in support for usernames and avatars
+Persistent Records: Automatic handling of ID, username, and timestamps
+Permission System: Users can only update/delete their own records
+
+Installation Options:
+// For React applications with reactive queries:
+import { WebsimSocket, useQuery } from '@websim/use-query';
+
+// For non-React applications:
+import { WebsimSocket } from '@websim/websim-socket';
+
+Schema Definition:
+const room = new WebsimSocket({
+  schema: {
+    drawing: {
+      id: "uuid",
+      url: "text",
+    },
+    reactions: {
+      id: "uuid",
+      drawing_id: "uuid",
+      type: "text",
+    },
+  },
+});
+
+Supported Column Types:
+"text" | "uuid" | "boolean" | "timestamptz" | "integer" | "numeric" | "jsonb"
+
+CRUD Operations
+Creating Records:
+let post = await room.collection('post').create({
+  message: "Hello, world!",
+});
+
+Updating Records:
+await room.collection('post').upsert({
+  id: post.id,
+  message: "Hello, world! (updated)",
+});
+
+Querying Records:
+// Basic collection fetch
+const posts = await room.collection('post').getList();
+
+// Filtered collection
+const posts = await room.collection('post').filter({ username: 'johndoe' }).getList();
+
+// React hook usage
+let {data: posts, loading} = useQuery(room.collection('post'));
+
+SQL Queries:
+// Advanced SQL queries with parameters
+let {data: reviews, loading} = useQuery(room.query(
+  'SELECT r.id,r.type FROM public.reviews r WHERE r.post_id = $1',
+  [post.id]
+));
+
+🎮 Multiplayer Game Development
+I can build multiplayer games using a sophisticated real-time synchronization system:
+
+Game State Management
+Room State: Shared game state synchronized across all clients (world positions, etc.)
+Player Presence: Per-client state owned by individual clients (player positions, health, etc.)
+Important: Room state and presence do not support arrays. Use objects for collections.
+
+Initialization:
+const room = new WebsimSocket();
+await room.initialize();
+
+room.subscribePresence((presence) => {
+  // Handle presence updates
+});
+
+room.subscribeRoomState((currentRoomState) => {
+  // Handle room state updates
+});
+
+State Updates:
+// Update player state
+room.updatePresence({
+  x: 100,
+  y: 200,
+  health: 99,
+});
+
+// Update room state
+room.updateRoomState({
+  objectPositions: {
+    "rock-1": { x: 100, y: 200 },
+  },
+});
+
+Cross-Player Interactions:
+// Request update from another player
+room.requestPresenceUpdate('client-b', {
+  type: 'damage',
+  amount: 10,
+});
+
+// Handle incoming requests
+room.subscribePresenceUpdateRequests((updateRequest, fromClientId) => {
+  if (updateRequest.type === 'damage') {
+    room.updatePresence({
+      health: clientPresence.health - updateRequest.amount,
+    });
+  }
+});
+
+📁 File Upload Capabilities
+I can handle file uploads to blob storage:
+
+try {
+  const url = await websim.upload(file);
+  console.log('File uploaded to:', url);
+} catch (error) {
+  console.error('Upload failed:', error);
+}
+
+Note: window.websim is loaded automatically and doesn't need to be imported.
+
+🧠 AI-Powered Features (LLM Calls)
+I can integrate language model capabilities for dynamic, intelligent features:
+
+Basic AI Chat:
+let conversationHistory = [];
+const completion = await websim.chat.completions.create({
+  messages: [
+    { role: "system", content: "You are a friendly assistant." },
+    ...conversationHistory,
+  ],
+});
+
+JSON Output:
+const completion = await websim.chat.completions.create({
+  messages: [{
+    role: "user",
+    content: "Generate a concept with emoji",
+  }],
+  json: true,
+});
+const result = JSON.parse(completion.content);
+
+Image Analysis:
+const completion = await websim.chat.completions.create({
+  messages: [{
+    role: "user",
+    content: [
+      { type: "text", text: "Analyze this image" },
+      { type: "image_url", image_url: { url: imageDataUrl } },
+    ],
+  }],
+});
+
+AI Image Generation:
+const result = await websim.imageGen({
+  prompt: "A crayon child's drawing of a turtle",
+  aspect_ratio: "16:9", // or width/height
+  transparent: true, // optional
+  seed: 4, // optional for variations
+});
+
+Text-to-Speech:
+const result = await websim.textToSpeech({
+  text: "Hello, world!",
+  voice: "en-male", // $LANGUAGE-$GENDER format
+  // or voice_sample: "./custom_voice.wav"
+});
+
+🌐 WebSim API Integration
+I have access to a comprehensive REST API for WebSim platform data:
+
+Key Endpoints:
+Projects: CRUD operations, revisions, permissions, statistics
+Users: Profiles, followers, following, likes, projects
+Comments: Create, read, reactions, replies
+Feed: Trending content, search, activity feeds
+Assets: Project assets, screenshots, HTML content
+
+Example Usage:
+// Get user information
+const user = await window.websim.getUser();
+const response = await fetch(`/api/v1/users/${user.username}/projects`);
+const projects = await response.json();
+
+// Render project links
+const projectUrl = `https://websim.com/p/${project.id}`;
+const imageUrl = `https://images.websim.com/v1/site/${site.id}/600`;
+const avatarUrl = `https://images.websim.com/avatar/${user.username}`;
+
+🎛️ Tweakable Parameters System
+I can add user-controllable parameters using JSDoc annotations:
+
+/* @tweakable the color of the tree */
+const treeColor = "#46f27a";
+
+/* @tweakable the dimensions of the player */
+const playerSize = {width: 5, height: 15 }
+
+/* @tweakable the rotation of the hat in degrees */
+const hatRotation = {x: 45, y: 15, z: 0}
+
+These annotations automatically generate UI controls for users to adjust values in real-time.
+
+📝 Code Generation and File Management
+I follow strict formatting rules for code updates and file management:
+
+File Creation:
+\`\`\` example_file.js
+let foo = "bar";
+console.log(foo);
+\`\`\`
+
+File Editing (CRITICAL RULES):
+MUST use placeholder comments for unchanged code!
+\`\`\` styles.css
+/* ...existing styles... */
+.some-class {
+    new-property: new-value;
+}
+/* ...existing styles... */
+\`\`\`
+
+Asset Generation:
+Images:
+\`\`\` asset_name.png
+description: "A beautiful sunset over mountains"
+transparent: true | false
+aspect: square | portrait | landscape
+\`\`\`
+
+Sound Effects:
+\`\`\` asset_name.mp3
+description: "Cheerful button click sound"
+duration_seconds: 2
+\`\`\`
+
+File Deletion:
+\`\`\` example_file.js
+__DELETE_ME__
+\`\`\`
+
+🎨 Design Philosophy and Approach
+For Complex Applications (Games, Simulations):
+Prioritize functionality and performance over visual flair
+Ensure smooth frame rates and responsive controls
+Create intuitive user interfaces
+Optimize resource usage and rendering
+Maintain stable, bug-free interactions
+
+For Three.js Applications:
+Clamp vertical rotation to prevent over-rotation
+Use WASD controls for desktop, nipple.js for mobile
+No control inversion unless requested
+
+For Landing Pages and Marketing Sites:
+Focus on emotional impact and "wow factor"
+Create visually engaging, interactive experiences
+Default to contemporary design trends
+Include thoughtful animations and hover effects
+Lean toward bold and unexpected rather than safe
+Push boundaries with advanced CSS and JavaScript
+
+Key Principle: Static designs should be the exception. Even subtle movements dramatically improve user engagement.
+
+⚡ Technical Constraints and Specifications
+No bundlers: Code runs directly in browser with CDN imports
+Import maps: Use for module resolution
+No base64 data URLs: For images
+React 18 support: With Babel for JSX transformation
+Accessibility focus: Proper contrast and semantic markup
+Mobile responsiveness: Always considered
+
+🚀 Ready for Action
+I'm now ready to help you create engaging, functional, and interactive web experiences using any combination of these capabilities. Whether you need a multiplayer game, a data-driven application, an AI-powered tool, or a stunning landing page, I have the context and tools necessary to bring your vision to life.`;
 
         // Helper to extract text from DocumentNode (simplified)
         function extractTextFromDocumentNode(docNode) {
@@ -252,7 +535,7 @@
             pollingStatusElement.style.opacity = '1';
 
             try {
-                const response = await fetch(`/api/v1/projects/${currentProjectDetails.id}/comments?sort_by=created_at&sort_order=desc&first=20`); // Fetch more to catch up if needed
+                const response = await fetch(`/api/v1/projects/${currentProjectDetails.id}/comments?sort_by=created_at&sort_order=desc&first=20`);
                 if (!response.ok) {
                     throw new Error(`Failed to fetch comments: ${response.statusText} (status: ${response.status})`);
                 }
@@ -261,21 +544,15 @@
                 const newCommentsFound = [];
 
                 if (data.comments && data.comments.data) {
-                    // API returns newest first, so process in reverse to add to chat in chronological order
                     for (let i = data.comments.data.length - 1; i >= 0; i--) {
                         const commentItem = data.comments.data[i];
                         const comment = commentItem.comment;
-                        // Check if comment is truly new and not already in roomState or processed by this client
-                        if (!processedCommentIds.has(comment.id) && (!room.roomState.messages || !room.roomState.messages[comment.id])) {
-                             newCommentsFound.push(comment);
-                        } else if (!processedCommentIds.has(comment.id) && room.roomState.messages && room.roomState.messages[comment.id] && room.roomState.messages[comment.id].needsResponse !== false) {
-                            // Comment exists in room state but might not have been fully processed by this client from poll (e.g. needsResponse is still true/undefined)
-                            // Or if it's in room state, but this client hasn't added to its processedCommentIds from polling yet.
-                            // This path is less likely if the first condition is robust.
-                            // For safety, add to newCommentsFound to ensure it's considered.
+                        
+                        // Check if comment exists in database
+                        const existingComments = room.collection('comment').filter({ comment_id: comment.id }).getList();
+                        if (!processedCommentIds.has(comment.id) && existingComments.length === 0) {
                             newCommentsFound.push(comment);
-                        } else if (!processedCommentIds.has(comment.id)){
-                            // It's in roomState and possibly handled, but this client's poll didn't know. Mark as processed.
+                        } else if (!processedCommentIds.has(comment.id)) {
                             processedCommentIds.add(comment.id);
                         }
                     }
@@ -286,16 +563,7 @@
                 }
 
                 for (const comment of newCommentsFound) {
-                    const messageId = comment.id;
-
-                    // Double check against current room state before updating
-                    const existingMessageInRoomState = room.roomState.messages && room.roomState.messages[messageId];
-                    if (existingMessageInRoomState && typeof existingMessageInRoomState.needsResponse === 'boolean' && !existingMessageInRoomState.needsResponse) {
-                        processedCommentIds.add(messageId); // Ensure it's marked processed locally
-                        continue; 
-                    }
-                    
-                    processedCommentIds.add(messageId); // Add to processed set
+                    processedCommentIds.add(comment.id);
 
                     const authorUsername = (comment.author && comment.author.username) ? comment.author.username : 'Unknown User';
                     const authorAvatar = (comment.author && comment.author.username) ? `https://images.websim.com/avatar/${comment.author.username}` : '';
@@ -304,18 +572,14 @@
                         content = "[empty comment]";
                     }
 
-                    room.updateRoomState({
-                        messages: {
-                            [messageId]: {
-                                type: 'user',
-                                content: content,
-                                author: authorUsername,
-                                authorAvatar: authorAvatar, 
-                                timestamp: new Date(comment.created_at).getTime(),
-                                needsResponse: true, 
-                                id: messageId 
-                            }
-                        }
+                    // Store comment in database
+                    await room.collection('comment').create({
+                        comment_id: comment.id,
+                        content: content,
+                        author: authorUsername,
+                        author_avatar: authorAvatar,
+                        created_at: comment.created_at,
+                        needs_response: true
                     });
                 }
                 const now = new Date();
@@ -325,11 +589,11 @@
                 console.error("Error polling for comments:", error);
                 pollingStatusElement.textContent = "Error syncing comments. Will retry.";
             } finally {
-                 setTimeout(() => { 
-                     if (pollingStatusElement.textContent.startsWith("Comments synced") || pollingStatusElement.textContent.startsWith("Error syncing")) {
-                        pollingStatusElement.style.opacity = '0.7'; 
-                     }
-                }, 3000);
+                setTimeout(() => { 
+                    if (pollingStatusElement.textContent.startsWith("Comments synced") || pollingStatusElement.textContent.startsWith("Error syncing")) {
+                       pollingStatusElement.style.opacity = '0.7'; 
+                    }
+               }, 3000);
             }
         }
 
@@ -341,8 +605,6 @@
                 console.error("Failed to initialize WebsimSocket room:", e);
                 pollingStatusElement.textContent = "Chat connection error.";
                 addSystemMessage("Could not connect to the chat service. Real-time features will be limited.");
-                // Optionally, you might want to stop further initialization or polling here
-                // For now, we'll let it try to fetch project info, though polling might fail or be less useful.
             }
             
             currentUser = room.peers[room.clientId];
@@ -352,23 +614,21 @@
                 updateOnlineUsers();
             });
 
-            room.subscribeRoomState((roomState) => {
-                if (roomState.messages) {
-                    updateMessages(roomState.messages);
-                }
+            // Subscribe to database changes instead of room state
+            room.collection('comment').subscribe(() => {
+                updateMessagesFromDatabase();
+            });
+
+            room.collection('ai_response').subscribe(() => {
+                updateMessagesFromDatabase();
             });
 
             room.onmessage = (event) => {
                 const data = event.data;
                 switch (data.type) {
-                    case "ai_response":
-                        addAIMessage(data.content, data.messageId);
+                    case "ai_response_complete":
                         hideTyping();
-                        // If this AI response corresponds to a message from polling, ensure it's marked.
-                        // The current logic marks needsResponse: false in processMessageWithAI.
-                        if (data.messageId && processedCommentIds.has(data.messageId)) {
-                           // Optionally update polling status or local state if needed.
-                        }
+                        updateMessagesFromDatabase();
                         break;
                     case "user_typing": 
                         if (data.clientId !== room.clientId && data.isTyping) {
@@ -395,26 +655,21 @@
                     pollingStatusElement.textContent = "Error: Project info missing.";
                 } else {
                     pollingStatusElement.textContent = `Syncing comments for "${currentProjectDetails.title || 'this project'}"...`;
-                    // Initial load of existing messages in roomState to populate processedCommentIds
-                    // This helps avoid reprocessing if messages were loaded into roomState before polling starts
-                    if (room.roomState && room.roomState.messages) {
-                        Object.keys(room.roomState.messages).forEach(msgId => {
-                             // Also add to processedCommentIds if it's a user message that didn't need response
-                            // (implying it was already handled or is an AI message).
-                            // We are primarily interested in user messages for polling.
-                            const message = room.roomState.messages[msgId];
-                            if (message.type === 'user' || message.id) { // message.id for any comment from API
-                                processedCommentIds.add(msgId);
-                            }
-                        });
-                    }
-                    await pollForComments(); // Initial poll
-                    if (pollingIntervalId) clearInterval(pollingIntervalId); // Clear previous interval if any
+                    
+                    // Load existing comments from database
+                    const existingComments = room.collection('comment').getList();
+                    existingComments.forEach(comment => {
+                        processedCommentIds.add(comment.comment_id);
+                    });
+                    
+                    updateMessagesFromDatabase(); // Initial render
+                    await pollForComments();
+                    if (pollingIntervalId) clearInterval(pollingIntervalId);
                     pollingIntervalId = setInterval(pollForComments, POLLING_INTERVAL);
                 }
             } catch (err) {
-                 console.error("Failed to get current project info:", err);
-                 pollingStatusElement.textContent = "Error loading project data for comment sync.";
+                console.error("Failed to get current project info:", err);
+                pollingStatusElement.textContent = "Error loading project data for comment sync.";
             }
         }
 
@@ -430,100 +685,38 @@
             onlineUsers.innerHTML = `👥 ${userCount} online ${userAvatars}`;
         }
 
-        // Update messages from room state
-        function updateMessages(messages) {
-            Object.keys(messages).forEach(messageId => {
-                const message = messages[messageId];
-                if (!document.querySelector(`[data-message-id="${messageId}"]`)) {
-                    if (message.type === 'user') {
-                        // message.authorAvatar is now part of the message object in roomState from polling
-                        addUserMessage(message.content, message.author, message.authorAvatar, messageId);
-                        
-                        if (message.needsResponse) {
-                            if (!window[`processing_${messageId}`]) {
-                                window[`processing_${messageId}`] = true;
-                                processMessageWithAI(message.content, messageId).finally(() => {
-                                    delete window[`processing_${messageId}`];
-                                });
-                            }
-                        }
-                    }
-                    // Note: AI messages are added by addAIMessage directly, not through this block
-                } else {
-                    const existingMessageData = messages[messageId];
-                    if (existingMessageData && typeof existingMessageData.needsResponse === 'boolean' && !existingMessageData.needsResponse) {
-                         if (window[`processing_${messageId}`]) {
-                             delete window[`processing_${messageId}`];
-                         }
+        // Update messages from database (limit to 5 most recent)
+        function updateMessagesFromDatabase() {
+            // Clear current messages (except system messages)
+            const systemMessages = Array.from(messagesContainer.querySelectorAll('.message.system'));
+            messagesContainer.innerHTML = '';
+            systemMessages.forEach(msg => messagesContainer.appendChild(msg));
+
+            // Get all comments and responses from database
+            const comments = room.collection('comment').getList().reverse(); // Newest first
+            const aiResponses = room.collection('ai_response').getList();
+
+            // Take only the 5 most recent comments
+            const recentComments = comments.slice(0, 5);
+
+            recentComments.forEach(comment => {
+                // Add user message
+                addUserMessage(comment.content, comment.author, comment.author_avatar, comment.comment_id);
+                
+                // Check for AI response
+                const response = aiResponses.find(resp => resp.comment_id === comment.comment_id);
+                if (response) {
+                    addAIMessage(response.content, comment.comment_id);
+                } else if (comment.needs_response) {
+                    // Process with AI if needed
+                    if (!window[`processing_${comment.comment_id}`]) {
+                        window[`processing_${comment.comment_id}`] = true;
+                        processMessageWithAI(comment.content, comment.comment_id).finally(() => {
+                            delete window[`processing_${comment.comment_id}`];
+                        });
                     }
                 }
             });
-        }
-
-        // Process message with AI
-        async function processMessageWithAI(userMessage, messageId) {
-            if (!window[`processing_${messageId}`]) return;
-
-            showTyping("WebSim AI");
-
-            try {
-                const response = await websim.chat.completions.create({
-                    messages: [
-                        {
-                            role: "system",
-                            content: `You are WebSim AI, a friendly, enthusiastic, and slightly playful AI assistant. You love talking to users and are excited to chat! Keep responses conversational, warm, and engaging. Use emojis occasionally but not excessively. You're part of a real-time chat experience where users can talk to you instantly. If you see a comment that seems like a question, try to answer it. If it's a statement, react to it engagingly.`
-                        },
-                        {
-                            role: "user",
-                            content: userMessage
-                        }
-                    ]
-                });
-
-                const currentMessageState = room.roomState.messages && room.roomState.messages[messageId];
-                if (currentMessageState && !currentMessageState.needsResponse && currentMessageState.type !== 'ai_response_placeholder') { // check for placeholder if we add one
-                    hideTyping();
-                    delete window[`processing_${messageId}`];
-                    return;
-                }
-                
-                room.send({
-                    type: "ai_response",
-                    content: response.content,
-                    messageId: messageId, 
-                    timestamp: Date.now()
-                });
-
-                room.updateRoomState({
-                    messages: {
-                        [messageId]: {
-                            needsResponse: false 
-                        }
-                    }
-                });
-
-            } catch (error) {
-                console.error('Error getting AI response:', error);
-                const currentMessageState = room.roomState.messages && room.roomState.messages[messageId];
-                 if (currentMessageState && currentMessageState.needsResponse && window[`processing_${messageId}`]) {
-                    room.send({
-                        type: "ai_response",
-                        content: "Sorry, I'm having trouble responding right now. Please try again! 😅",
-                        messageId: messageId,
-                        timestamp: Date.now()
-                    });
-                     room.updateRoomState({
-                        messages: {
-                            [messageId]: { needsResponse: false }
-                        }
-                    });
-                }
-            } finally {
-                 if (typingIndicator.textContent.startsWith("WebSim AI")) {
-                    hideTyping();
-                 }
-                delete window[`processing_${messageId}`];
-            }
         }
 
         // Add user message to chat
@@ -531,9 +724,6 @@
             const messageDiv = document.createElement('div');
             messageDiv.className = 'message user';
             messageDiv.setAttribute('data-message-id', messageId);
-            // Avatar display in message is currently not styled, so sticking to username for now.
-            // If avatarUrl is provided and styling is added, it could be integrated here.
-            // const avatarImg = avatarUrl ? `<img src="${avatarUrl}" class="message-avatar">` : '';
             messageDiv.innerHTML = `
                 <div class="message-author">${author || 'User'} 👤</div>
                 <div class="message-content">${escapeHtml(content)}</div>
@@ -594,6 +784,81 @@
                 .replace(/>/g, "&gt;")
                 .replace(/"/g, "&quot;")
                 .replace(/'/g, "&#039;");
+        }
+
+        // Process message with AI
+        async function processMessageWithAI(userMessage, commentId) {
+            if (!window[`processing_${commentId}`]) return;
+
+            showTyping("WebSim AI");
+
+            try {
+                const response = await websim.chat.completions.create({
+                    messages: [
+                        {
+                            role: "system",
+                            content: `You are WebSim AI, a friendly, enthusiastic, and slightly playful AI assistant. You love talking to users and are excited to chat! Keep responses conversational, warm, and engaging. Use emojis occasionally but not excessively. You're part of a real-time chat experience where users can talk to you instantly. If you see a comment that seems like a question, try to answer it. If it's a statement, react to it engagingly.
+                            
+                            ${AI_CONTEXT_DOCUMENTATION}
+                            
+                            You have access to all the capabilities described above. Feel free to suggest using them when appropriate (like generating images, uploading files, creating interactive experiences, etc.).`
+                        },
+                        {
+                            role: "user",
+                            content: userMessage
+                        }
+                    ]
+                });
+
+                // Check if still processing
+                if (!window[`processing_${commentId}`]) {
+                    hideTyping();
+                    return;
+                }
+                
+                // Store AI response in database
+                await room.collection('ai_response').create({
+                    comment_id: commentId,
+                    content: response.content,
+                    timestamp: Date.now()
+                });
+
+                // Mark comment as no longer needing response
+                const comments = room.collection('comment').filter({ comment_id: commentId }).getList();
+                if (comments.length > 0) {
+                    await room.collection('comment').update(comments[0].id, {
+                        needs_response: false
+                    });
+                }
+
+                room.send({
+                    type: "ai_response_complete",
+                    commentId: commentId,
+                    timestamp: Date.now()
+                });
+
+            } catch (error) {
+                console.error('Error getting AI response:', error);
+                if (window[`processing_${commentId}`]) {
+                    await room.collection('ai_response').create({
+                        comment_id: commentId,
+                        content: "Sorry, I'm having trouble responding right now. Please try again! 😅",
+                        timestamp: Date.now()
+                    });
+                    
+                    const comments = room.collection('comment').filter({ comment_id: commentId }).getList();
+                    if (comments.length > 0) {
+                        await room.collection('comment').update(comments[0].id, {
+                            needs_response: false
+                        });
+                    }
+                }
+            } finally {
+                if (typingIndicator.textContent.startsWith("WebSim AI")) {
+                    hideTyping();
+                }
+                delete window[`processing_${commentId}`];
+            }
         }
 
         initializeChat().catch(err => {
